@@ -7,7 +7,7 @@ app = FastAPI()
 #Configure Spotify API
 spotify = Spotify(auth_manager=SpotifyClientCredentials(
     client_id = "f524fa5d6eec4cfcb4c05f8469a612c0",
-    cleint_secret = "22cec1f60c3649ed984e5930b5869502"
+    client_secret = "22cec1f60c3649ed984e5930b5869502"
 ))
 
 @app.get("/")
@@ -25,17 +25,26 @@ def get_spotify_recommendations(mood: str):
             "relaxed": "chill acoustic"
         }
 
-        query = mood_queries(mood.lower(), "mood booster")
+        query = mood_queries.get(mood.lower(), "mood booster")
         results = spotify.search(q=query, type="playlist", limit=3)
+
+        # Check if results and playlists exist
+        playlists_data = results.get("playlists", {}).get("items", [])
+        valid_playlists = [playlist for playlist in playlists_data if playlist]  # Filter out None
+
+        if not valid_playlists:
+            return {"error": "No playlists found for the given mood"}
 
         #Extract playlist data
         playlists = [
             {
-                "name": playlist["name"],
-                "description": playlist["description"],
-                "url": playlist["external_urls"]["spotify"]
+                "name": playlist.get("name", "Unknown Playlist"),
+                "description": playlist.get("description", "No description available"),
+                "url": playlist["external_urls"]["spotify"],
+                "image": playlist["images"][0]["url"] if playlist.get("images") else None,
+                "owner": playlist["owner"]["display_name"]
             }
-            for playlist in results["playlists"]["items"]
+            for playlist in valid_playlists
         ]
 
         return {"mood": mood, "playlists": playlists}

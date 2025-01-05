@@ -10,7 +10,7 @@ mood = st.text_input("How are you feeling today?")
 if st.button('Analyze'):
     #send a request to FastAPI endpoint
     response = requests.post(
-        "http://127.0.0.1:8000/analyze_mood/", json={"mood": mood}
+        "http://127.0.0.1:8000/spotify-recommendations/", json={"mood": mood}
     )
     if response.status_code == 200:
         result = response.json()

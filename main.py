@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
+from database import Base, engine, SessionLocal
+from models import MoodLog
 
 app = FastAPI()
 
@@ -10,6 +12,8 @@ spotify = Spotify(auth_manager=SpotifyClientCredentials(
     client_secret = "22cec1f60c3649ed984e5930b5869502"
 ))
 
+Base.metadata.create_all(bind=engine)
+
 @app.get("/")
 def index():
     return {"message": "Welcome to MoodSync+"}
@@ -17,7 +21,7 @@ def index():
 @app.get("/spotify-recommendations/")
 def get_spotify_recommendations(mood: str):
     try:
-        #Map moods to Spotify seach queries
+        # Spotify API logic
         mood_queries = {
             "happy": "happy vibes",
             "sad": "calm and relaxing",
@@ -28,28 +32,43 @@ def get_spotify_recommendations(mood: str):
         query = mood_queries.get(mood.lower(), "mood booster")
         results = spotify.search(q=query, type="playlist", limit=3)
 
-        # Check if results and playlists exist
         playlists_data = results.get("playlists", {}).get("items", [])
-        valid_playlists = [playlist for playlist in playlists_data if playlist]  # Filter out None
+        valid_playlists = [playlist for playlist in playlists_data if playlist]
 
         if not valid_playlists:
             return {"error": "No playlists found for the given mood"}
 
-        #Extract playlist data
-        playlists = [
-            {
-                "name": playlist.get("name", "Unknown Playlist"),
-                "description": playlist.get("description", "No description available"),
-                "url": playlist["external_urls"]["spotify"],
-                "image": playlist["images"][0]["url"] if playlist.get("images") else None,
-                "owner": playlist["owner"]["display_name"]
-            }
-            for playlist in valid_playlists
-        ]
+        # Extract the first playlist for logging
+        selected_playlist = valid_playlists[0]
+        playlist_name = selected_playlist.get("name", "Unknown Playlist")
+        playlist_url = selected_playlist["external_urls"]["spotify"]
 
-        return {"mood": mood, "playlists": playlists}
+        # Exercise recommendations
+        exercises = {
+            "happy": "Jogging for 10 minutes",
+            "sad": "Gentle yoga poses",
+            "energetic": "HIIT workout",
+            "relaxed": "Meditation"
+        }
+        exercise = exercises.get(mood.lower(), "Take a short walk")
+
+        # Save to the database
+        db = SessionLocal()
+        mood_log = MoodLog(mood=mood, playlist=playlist_name, exercise=exercise)
+        db.add(mood_log)
+        db.commit()
+        db.refresh(mood_log)
+
+        # Return recommendations
+        return {
+            "mood": mood,
+            "playlists": [{"name": playlist_name, "url": playlist_url}],
+            "exercise": exercise
+        }
+
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"An error occurred: {str(e)}"}
+
         
 
 #Analyze mood

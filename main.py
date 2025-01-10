@@ -2,8 +2,9 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from pydantic import BaseModel
 import requests
 from sqlalchemy.orm import Session
-from database import SessionLocal
+from database import SessionLocal, Base, engine
 from models import ChatLog
+from routes import auth, chat
 from dotenv import load_dotenv
 import os
 from spotipy import Spotify
@@ -14,6 +15,13 @@ load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
+# Include routers
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(chat.router, prefix="/chat", tags=["Chatbot"])
 
 # Constants
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

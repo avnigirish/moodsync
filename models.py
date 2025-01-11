@@ -1,10 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql import func
+from datetime import datetime
+from sqlalchemy import Column, ForeignKey, Integer, String, Text, DateTime, func
+from sqlalchemy.orm import relationship
 from database import Base, engine
-
-Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
@@ -14,14 +11,19 @@ class User(Base):
     full_name = Column(String, nullable=True)
     is_active = Column(Integer, default=1)  # 1 for active, 0 for inactive
 
+    mood_logs = relationship("MoodLog", back_populates="user")
+    chat_logs = relationship("ChatLog", back_populates="user")
+
 
 class MoodLog(Base):
     __tablename__ = "mood_logs"
     id = Column(Integer, primary_key=True, index=True)
-    mood = Column(String)
-    playlist_name = Column(String)
-    playlist_url = Column(String)
-    exercise = Column(String)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    mood = Column(String, nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="mood_logs")
+
 
 class ChatLog(Base):
     __tablename__ = "chat_logs"
@@ -29,5 +31,8 @@ class ChatLog(Base):
     user_message = Column(Text, nullable=False)
     bot_response = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Allow NULL
+    user = relationship("User", back_populates="chat_logs")
 
+# Ensure tables are created
 Base.metadata.create_all(bind=engine)

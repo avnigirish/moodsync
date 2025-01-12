@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 import requests
 from sqlalchemy.orm import Session
+from sympy import use
 from database import SessionLocal, Base, engine
 from models import ChatLog, MoodLog
 from routes import auth, chat
@@ -12,6 +14,9 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from schemas import MoodLogCreate
 from datetime import datetime
 from transformers import pipeline
+from utils.hash_utils import hash_password, verify_password
+from utils.user_utils import get_user_by_username
+from auth_token import get_current_user
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +30,11 @@ Base.metadata.create_all(bind=engine)
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(chat.router, prefix="/chat", tags=["Chatbot"])
+
+@app.get("/docs")
+async def get_swagger():
+    # Customizing the Swagger UI's authorization flow to work with bearer tokens
+    return app.openapi()
 
 # Constants
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -124,9 +134,9 @@ def generate_exercise_routines(mood):
     return routines.get(mood.lower(), "A balanced workout routine.")
 
 @app.post("/chat/")
-async def chat_endpoint(chat_request: ChatRequest, db: Session = Depends(get_db)):
+async def chat_endpoint(chat_request: ChatRequest, db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
     try:
-        user_id = 1  # You should retrieve the actual logged-in user ID here.
+        print(user_id)
         user_message = chat_request.message
         if not user_message:
             raise HTTPException(status_code=400, detail="Message is required")
@@ -161,16 +171,18 @@ async def chat_endpoint(chat_request: ChatRequest, db: Session = Depends(get_db)
         response_data = response.json()
         bot_response = response_data["choices"][0]["message"]["content"]
 
-        chat_log = ChatLog(user_message=user_message, bot_response=bot_response)
+        # Add chat log with correct user_id
+        chat_log = ChatLog(user_message=user_message, bot_response=bot_response, user_id=user_id)
         db.add(chat_log)
 
+        # Add mood log with correct user_id
         mood_log = MoodLog(user_id=user_id, mood=','.join(mood_array), timestamp=datetime.utcnow())
         db.add(mood_log)
 
         db.commit()
 
         return {
-            "user_id": user_id, 
+            "user_id": user_id,
             "user_message": user_message,
             "mood_array": mood_array,
             "bot_response": bot_response,

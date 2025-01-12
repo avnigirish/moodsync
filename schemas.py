@@ -2,13 +2,13 @@ from pydantic import BaseModel
 
 class UserCreate(BaseModel):
     email: str
+    username: str = None
     password: str
-    full_name: str = None
 
 class UserRead(BaseModel):
-    id: int
     email: str
-    full_name: str = None
+    username: str = None
+    password: str
 
     class Config:
         orm_mode = True
